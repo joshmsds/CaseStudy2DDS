@@ -9,6 +9,7 @@ Code:
 rmarkdown/CaseStudy02-Final.rmd
 
 Project Hierarchy 
+```
 .
 ├── LICENSE
 ├── README.md
@@ -32,3 +33,4 @@ Project Hierarchy
     ├── CaseStudy02.rmd
     ├── CaseStudy02_EDA.html
     └── CaseStudy02_EDA.rmd
+```
