@@ -1,0 +1,257 @@
+---
+title: "CaseStudy02_EDA"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+For this case study, we investigated the CaseStudy02 dataset. The dataset contained 870 entries with 36 feature vectors. Through the analysis, we were able to classify potential attrition for employees with greater than 70 % accuracy as well as predict income rates with an RMSE of 1387. In addition, we overcame several unforeseen challenges in the dataset. 
+
+
+## Exploratory Data Analysis 
+In this section we will perform an exploratory data analysis (EDA) of the CaseStudy-2 dataset. This dataset can be found in the `datasets` directory for the project. The project will attempt to investigate the data by performing the following steps:
+
+ - Determine the dimensions of the dataset.
+
+ - Address non-informative / missing features. 
+
+ - Compute the correlation values between continuous features and the Attrition variable.
+
+ - Comment on the distribution of Attrition variable.
+ 
+ - Compute the correlation values between discreete features and the Attrition variable.
+
+ - Identify any relationship between the Attrition variable and other variables in the dataset.
+
+ - Identify any relationship between the MonthlyIncome variable and other variables in the dataset.
+
+
+### 1. Determine the dimensions of the dataset
+The dataset contains 870 entries with 36 features.
+
+```{r}
+#get the data from the file
+caseStudy2DF <- read.csv('..\\datasets\\CaseStudy2-data.csv')
+#get the dimensions
+dim(caseStudy2DF)
+head(caseStudy2DF)
+sapply(caseStudy2DF, class)
+```
+
+
+### 2. Address non-informative / missing features
+
+
+```{r}
+library(DataExplorer)
+library(dplyr)
+#look for missing values
+plot_missing(caseStudy2DF, title='Misssing data points')
+
+#ok no missing values, lets look for all the same values
+badCols = caseStudy2DF %>% summarise_all(funs(n_distinct(.))) %>% select_if(. == 1)
+names(badCols)
+
+#we have 3 cols that just have one value in it 
+#create a new df without them
+caseStudyMin = caseStudy2DF[, -which(names(caseStudy2DF) %in% names(badCols))]
+dim(caseStudyMin)
+```
+
+
+### 3. Compute the correlation values between continuous features and the Attrition variable
+
+```{r}
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(corrplot)
+library(corrly)
+library("PerformanceAnalytics")
+
+caseStudyMin %>% keep(is.numeric) %>% gather() %>% ggplot(aes(value)) + facet_wrap(~ key, scales = "free") + geom_histogram()
+
+attNoDf <- filter(caseStudyMin, caseStudyMin$Attrition == 'No') %>% keep(is.numeric)
+attYesDf <- filter(caseStudyMin, caseStudyMin$Attrition == 'Yes') %>% keep(is.numeric)
+dim(attNoDf)
+dim(attYesDf)
+matrixly(data=attNoDf)
+matrixly(data=attYesDf)
+
+numericAttritionDf <- caseStudyMin %>% mutate(Attrition = ifelse(as.character(Attrition) == "Yes", 1, as.character(Attrition)))
+numericAttritionDf <- numericAttritionDf %>% mutate(Attrition = ifelse(as.character(Attrition) == "No", 0, as.numeric(Attrition)))
+numericAttritionDf <- numericAttritionDf %>% keep(is.numeric)
+matrixly(data=numericAttritionDf)
+res <- cor(numericAttritionDf)
+round(res, 2)
+
+att <- select(numericAttritionDf, c('Attrition','ID','Age','DailyRate', 'DistanceFromHome', 'Education'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numericAttritionDf, c('Attrition','EmployeeNumber', 'EnvironmentSatisfaction', 'HourlyRate', 'JobInvolvement', 'JobLevel'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numericAttritionDf, c('Attrition','JobSatisfaction', 'MonthlyIncome', 'MonthlyRate', 'NumCompaniesWorked', 'PercentSalaryHike'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numericAttritionDf, c('Attrition','PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numericAttritionDf, c('Attrition','WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+
+```
+
+
+### 4. Comment on the distribution of Attrition variable
+
+```{r}
+
+#quick look at the distribution of the Attrition variable
+hist(numericAttritionDf$Attrition)
+
+# % of observations with attrition == YES
+dim(filter(numericAttritionDf, numericAttritionDf$Attrition == 1))[1] / (dim(filter(numericAttritionDf, numericAttritionDf$Attrition == 0))[1] + dim(filter(numericAttritionDf, numericAttritionDf$Attrition == 1))[1])
+
+
+```
+
+### 5. Compute the correlation values between categorical features
+
+```{r}
+factAttritionDF <- caseStudyMin %>% keep(is.character) 
+factAttritionDF <- factAttritionDF %>% mutate_if(is.character, as.factor)
+factAttritionDF <- factAttritionDF %>% mutate_if(is.factor, as.numeric)
+
+ggplot(factAttritionDF, aes(x=BusinessTravel)) + geom_bar()
+
+summary(factAttritionDF)
+chart.Correlation(factAttritionDF, histogram=TRUE, pch=19)
+```
+
+
+### 6. Identify any relationship between the Attrition variable and other features in the dataset
+
+ - Build a classification model to predict attrition with 60% specificity and 60% selectivity. 
+ 
+ - Build a regression model to predict income with an RMSE < $3000.
+
+## do bayes
+
+```{r}
+library('e1071')
+library(caret)
+
+#features we found from the eda
+caseStudyFeatures <- select(caseStudyMin, c('ID','Attrition','Age', 'DistanceFromHome', 'EnvironmentSatisfaction', 'JobInvolvement', 'JobLevel', 'JobSatisfaction', 'MonthlyIncome', 'NumCompaniesWorked', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear','WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsWithCurrManager', 'Department', 'JobRole', 'MaritalStatus', 'OverTime', 'Gender', 'Education', 'YearsSinceLastPromotion'))
+
+#we are inverting the % of the training population vs actual population of the model 
+200 / sum(caseStudyFeatures$Attrition == 'No') 
+100 / sum(caseStudyFeatures$Attrition == 'Yes')
+
+iterations = 100
+accs = data.frame(accuracy = numeric(iterations), specificity = numeric(iterations), sensitivity = numeric(iterations))
+
+#do 100 random runs of the model 
+for(i in 1:iterations)
+{
+  set.seed(i)
+  tmp_n <- filter(caseStudyFeatures, caseStudyFeatures$Attrition == 'No') %>% sample_n(., 200)
+  tmp_y <- filter(caseStudyFeatures, caseStudyFeatures$Attrition == 'Yes') %>% sample_n(., 100)
+  training <- merge(tmp_n, tmp_y, all=TRUE)
+
+  testing <- caseStudyFeatures %>% filter(!ID %in% training$ID)
+  testing <- testing[,!names(testing) %in% c('ID')]
+
+  training <- training[,!names(training) %in% c('ID')]
+
+  model <- naiveBayes(Attrition~.,data = training)
+  p <- predict(model, testing, type='raw')
+  cm <- confusionMatrix(table(predict(model,testing),testing$Attrition))
+  accs$accuracy[i] <- cm$overall[1]
+  accs$sensitivity[i] <- cm[4]$byClass[1]
+  accs$specificity[i] <- cm[4]$byClass[2]
+  accs$index[i] <- i
+}
+head(accs)
+mean(accs$accuracy)
+mean(accs$specificity)
+mean(accs$sensitivity)
+
+#inspect the mean accuracy of the model 
+accs %>% ggplot(aes(x=index, y=accuracy)) + geom_point() +geom_smooth(method = lm)
+
+#just take the last model 
+#and use it
+p <- predict(model, caseStudyFeatures, type='raw')
+
+#append the predictions
+t <- data.frame(caseStudyMin, p)
+colnames(t)[35] <- "Prediction"
+
+#set the string values
+o  <- t %>% mutate(Prediction = ifelse(Prediction >= .5, 'Yes', 'No'))
+outdata <- select(o, c('ID', 'Prediction'))
+#rename
+colnames(outdata)[2] <- 'Attrition'
+
+#write it out
+c <- outdata[with(outdata, order(ID)),]
+write.csv(c,"..\\predictions\\CaseStudy2PredictionsClassify.csv", row.names = FALSE)
+```
+
+
+## do linear regression (graph correlation)
+
+```{r}
+factAttritionDF <- caseStudyMin %>% keep(is.character) 
+factAttritionDF <- factAttritionDF %>% mutate_if(is.character, as.factor)
+factAttritionDF <- factAttritionDF %>% mutate_if(is.factor, as.numeric)
+
+numCaseStudyDf <- caseStudyMin %>% keep(is.numeric)
+
+att <- select(numCaseStudyDf, c('MonthlyIncome','ID','Age','DailyRate', 'DistanceFromHome', 'Education'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numCaseStudyDf, c('MonthlyIncome','EmployeeNumber', 'EnvironmentSatisfaction', 'HourlyRate', 'JobInvolvement', 'JobLevel'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numCaseStudyDf, c('MonthlyIncome','JobSatisfaction', 'MonthlyRate', 'NumCompaniesWorked', 'PercentSalaryHike'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numCaseStudyDf, c('MonthlyIncome','PerformanceRating', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+att <- select(numCaseStudyDf, c('MonthlyIncome','WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager'))
+chart.Correlation(att, histogram=TRUE, pch=19)
+
+```
+### do linear regression (model)
+
+```{r}
+library(Metrics)
+numCaseStudyDf %>% ggplot(aes(x=TotalWorkingYears, y=MonthlyIncome)) + geom_point() + geom_smooth(method = lm)
+
+incomeDF <- data.frame(numCaseStudyDf$TotalWorkingYears, numCaseStudyDf$MonthlyIncome, numCaseStudyDf$JobLevel)
+names(incomeDF)[1] <- 'TotalWorkingYears'
+names(incomeDF)[2] <- 'MonthlyIncome'
+names(incomeDF)[3] <- 'JobLevel'
+
+lmh <- lm(incomeDF$MonthlyIncome ~ incomeDF$TotalWorkingYears+incomeDF$JobLevel, data = incomeDF)
+summary(lmh)
+
+dataB <- incomeDF[, c("MonthlyIncome", "TotalWorkingYears", "JobLevel")]
+
+plot(lmh$residuals, pch=16, col='blue')
+
+predDf <- data.frame(MonthlyIncome <- c(8333), JobLevel <- c(1))
+
+rmse(dataB$MonthlyIncome, predict(lmh, newdata=predDf))
+
+
+```

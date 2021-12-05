@@ -1,0 +1,186 @@
+---
+title: "CaseStudy02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+
+## Introduction
+
+## Clustering
+
+```{r}
+library('e1071')
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(caret)
+library(class)
+#get the data from the file
+eDF <- read.csv('..\\datasets\\CaseStudy2-data.csv')
+
+head(eDF)
+
+#get some random values that should be good ... never looked into it
+tmp <- select(eDF, c('Age', 'Attrition', 'Education', 'EnvironmentSatisfaction', 'Gender', 'JobInvolvement', 'JobLevel', 'JobSatisfaction', 'OverTime', 'RelationshipSatisfaction', 'StockOptionLevel', 'WorkLifeBalance', 'YearsSinceLastPromotion'))
+head(tmp)
+
+set.seed(4)
+splitPerc = .8
+split = sample(1:dim(tmp)[1],round(splitPerc * dim(tmp)[1]))
+
+training = tmp[split,]
+
+testing = tmp[-split,]
+sum(eDF$Attrition == 'Yes')
+sum(eDF$Attrition == 'No')
+
+tmp_n <- filter(tmp, tmp$Attrition == 'No') %>% sample_n(., 100)
+tmp_y <- filter(tmp, tmp$Attrition == 'Yes') %>% sample_n(., 100)
+
+tra <- merge(tmp_n, tmp_y, all=TRUE)
+tra
+testtwo <- tmp[-tra,]
+
+
+training
+#create the test bucket
+testing = tmp[-split,]
+
+model <- naiveBayes(Attrition~.,data = tra)
+model
+p<-predict(model, testing, type='raw')
+cm <- confusionMatrix(table(predict(model,testing),testing$Attrition))
+cm
+library(Metrics)
+tra
+model
+
+
+training$Attrition
+sum(is.na(training))
+sum(is.na(testing))
+
+tmp <- select(eDF, c('Attrition', 'Age', 'Education', 'EnvironmentSatisfaction', 'JobInvolvement', 'JobLevel', 'JobSatisfaction', 'RelationshipSatisfaction', 'StockOptionLevel', 'WorkLifeBalance', 'YearsSinceLastPromotion'))
+split = sample(1:dim(tmp)[1],round(splitPerc * dim(tmp)[1]))
+
+training = tmp[split,]
+training$Attrition <- as.factor(training$Attrition)
+
+testing = tmp[-split,]
+testing$Attrition <- as.factor(testing$Attrition)
+
+acc <- data.frame(accuracy = numeric(100), k=numeric(100))
+head(testing)
+class(testing$Attrition)
+list(testing)
+dim(testing)
+for (i in 1:100) {
+  # train and classify the data 
+  classify = knn(training[, names(training) != "Attrition"],
+                 testing[, names(testing) != "Attrition"],
+                 training$Attrition,
+                 prob = TRUE,
+                 k=i)
+  #get the confusion matrix for the test  
+  conf = confusionMatrix(table(classify, testing$Attrition))
+  
+  #save our accuracy 
+  acc$accuracy[i] <-  conf$overall[1]
+  
+  #save the k value 
+  acc$k[i] <- i
+  
+}
+plot(acc$k,acc$accuracy, type = "l", xlab = "k Value", ylab='Accuracy')
+best <- acc[which.max(acc$accuracy),]
+print(best)
+knnipa <- knn(training[, names(training) != "Attrition"], testing[, names(testing) != "Attrition"], training$Attrition,k = best$k, prob = TRUE)
+knncm = confusionMatrix(table(knnipa, testing$Attrition))
+knncm
+```
+
+```{r}
+#get the data from the file
+library(plotly)
+eDF <- read.csv('..\\datasets\\CaseStudy2-data.csv')
+
+head(eDF)
+#get some random values that should be good ... never looked into it
+tmp <- select(eDF, c('MonthlyRate', 'MonthlyIncome', 'TotalWorkingYears', 'Department', 'JobRole', 'OverTime', 'EducationField'))
+cor(tmp$TotalWorkingYears, tmp$MonthlyIncome)
+dataB <- tmp[, c("MonthlyIncome", "TotalWorkingYears")]
+lmh <- lm(TotalWorkingYears ~ MonthlyIncome, data = dataB)
+plot(dataB, pch = 16, col = "blue")+abline(lmh)
+odf <- data.frame(MonthlyIncome <- c(5000))
+
+p <- predict(lmh, newdata=odf)
+rmse(dataB$MonthlyIncome, predict(lmh, newdata=odf))
+
+tmpSales <- filter(tmp, tmp$Department == 'Sales')
+tmpSales <- filter(tmpSales, tmpSales$EducationField == 'Technical Degree')
+tmpSales <- filter(tmpSales, tmpSales$OverTime == 'Yes')
+
+
+plot(tmpSales$TotalWorkingYears, tmpSales$MonthlyIncome, pch = 16, cex = 1.3, col = "blue", main = "monthly rate PLOTTED AGAINST working years", xlab = "working years", ylab = "monthly rate")
+
+levels(as.factor(tmpSales$EducationField))
+
+tmpSales %>% mutate(jobFacet = as.factor(JobRole)) %>% ggplot(aes(x=TotalWorkingYears, y=MonthlyIncome)) + geom_point()  +geom_smooth(method = lm)+ facet_wrap(~jobFacet)
+max(tmpSales$MonthlyIncome)
+
+ggplot(data = tmpSales) +  geom_col(mapping = aes(x=TotalWorkingYears, y=MonthlyIncome)) +   facet_wrap(~JobRole)
+
+lmh <- lm(tmpSales$TotalWorkingYears ~ tmpSales$MonthlyRate + as.factor(tmpSales$EducationField), data = tmpSales)
+plot(tmpSales$TotalWorkingYears, pch = 16, col = "blue")+abline(lmh)
+summary(lmh)
+plot(lmh$residuals, pch=16, col='blue')
+
+
+
+tmpRD <- filter(tmp, tmp$Department == "Research & Development")
+tmpRD <- filter(tmpRD, tmpRD$EducationField == 'Technical Degree')
+tmpRD <- filter(tmpRD, tmpRD$OverTime == 'Yes')
+tmpRD %>% mutate(jobFacet = as.factor(JobRole)) %>% ggplot(aes(x=TotalWorkingYears, y=MonthlyIncome)) + geom_point() + geom_smooth(method = lm)+  facet_wrap(~JobRole)
+
+ggplot(data = tmpRD) +  geom_col(mapping = aes(x=TotalWorkingYears, y=MonthlyIncome)) +   facet_wrap(~JobRole)
+
+
+rdLabTech <- filter(tmpRD, tmpRD$JobRole == 'Laboratory Technician')
+rdLabTech
+dataB <- rdLabTech[, c("MonthlyIncome", "TotalWorkingYears")]
+
+lmh <- lm(TotalWorkingYears ~ MonthlyIncome, data = dataB)
+lmh
+
+plot(dataB, pch = 16, col = "blue")+abline(lmh)
+plot(lmh$residuals, pch=16, col='blue')
+summary(lmh)
+cor(dataB$MonthlyIncome, dataB$TotalWorkingYears)
+
+odf <- data.frame(MonthlyIncome <- c(5000))
+
+p <- predict(lmh, newdata=odf)
+rmse(dataB$MonthlyIncome, predict(lmh, newdata=odf))
+
+
+tmpHR <- filter(tmp, tmp$Department == "Human Resources")
+tmpHR <- filter(tmpHR, tmpHR$OverTime == 'No')
+
+tmpHR %>% mutate(jobFacet = as.factor(JobRole)) %>% ggplot(aes(x=TotalWorkingYears, y=MonthlyRate)) + geom_point() +geom_smooth(method = lm)+  facet_wrap(~JobRole)
+
+ggplot(data = tmpHR) +  geom_col(mapping = aes(x=TotalWorkingYears, y=MonthlyRate)) +   facet_wrap(~JobRole)
+
+
+tmp$TotalWorkingYears
+
+
+lmh <- lm(tmp$EducationField ~ tmp$MonthlyRate, data = tmp)
+plot(tmp$TotalWorkingYears, pch = 16, col = "blue")+abline(lmh)
+summary(lmh)
+
+```
